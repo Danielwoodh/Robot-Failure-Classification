@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 from cycler import cycler
 
 # Parameter tuning & scoring
-import sklearn as sk
 from sklearn.model_selection import (
     RandomizedSearchCV, ParameterSampler, 
     train_test_split, ShuffleSplit
@@ -28,10 +27,6 @@ from sklearn.metrics import (
 
 # SMOTE
 from imblearn.over_sampling import SMOTE
-
-# PCA
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
 
 # Pipeline
 from imblearn.pipeline import Pipeline
