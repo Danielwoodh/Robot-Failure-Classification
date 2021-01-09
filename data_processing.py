@@ -22,7 +22,9 @@ from sklearn.model_selection import (
 from sklearn.metrics import (
     accuracy_score, balanced_accuracy_score,
     f1_score, precision_score, recall_score,
-    roc_auc_score, classification_report
+    roc_auc_score, classification_report,
+    confusion_matrix, plot_confusion_matrix,
+    multilabel_confusion_matrix
 )
 
 # SMOTE
@@ -247,14 +249,12 @@ def build_model(
       
       smote | boolean | Boolean value defining if SMOTE should be used
       
-      pca | boolean | Boolean value defining if PCA should be used
-      
       verbose | boolean | Boolean value defining if verbose should be displayed
       
     Outputs:
       report | dictionary | Dictionary containing the classification report from RandomizedSearchCV
       
-      scores | dictionary | Dictionary containing the score values for the classifier
+      scores | pd.DataFrame | Pandas Dataframe containing the score values for the classifier
     '''
     
     # Copying the model, prevents it
@@ -268,7 +268,7 @@ def build_model(
     #
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
-        test_size=0.3,
+        test_size=0.4,
         random_state=0
     )
 
@@ -321,25 +321,49 @@ def build_model(
     print('Best Hyperparameters: ')
     print(search.best_estimator_)
     
-#     labels = ['accuracy', 'f1', 'precision', 'roc_auc', 'recall', 'specificity']
+    labels = ['accuracy', 'f1', 'precision', 'roc_auc', 'recall', 'specificity']
 #     scores = {
-#         '': 
-#         '':
-#         '':
+#         'accuracy': accuracy_score(y_test, y_pred),
+#         'balanced accuracy': balanced_accuracy_score(y_test, y_pred),
+#         'precision': ,
+#         'roc_auc': ,
+#         'recall': recall_score(y_test, y_pred),
 #     }
-    print()
     
     if len(output_cols) > 1:
         target_names = output_cols
+        conf_matrix = multilabel_confusion_matrix(y_test, y_pred, labels=target_names)
+        for tn, fp, fn, tp in conf_matrix:
+            tn, fp, fn, tp = conf_matrix[]
+        scores = {
+            'accuracy': [accuracy_score(y_test, y_pred, labels=target_names)],
+            'balanced accuracy': [balanced_accuracy_score(y_test, y_pred, labels=target_names)],
+            'precision': [precision_score(y_test, y_pred, average='micro', labels=target_names)],
+            'recall': [recall_score(y_test, y_pred, average='micro', labels=target_names)],
+            'roc_auc': [roc_auc_score(y_test, y_pred, average='micro', labels=target_names)],
+            'F1': [f1_score(y_test, y_pred, average='micro', labels=target_names)],
+#             'specificity': conf_matrix[]
+        }
     elif len(output_cols) == 1:
-        target_names = ['0', '1']
-    
+        target_names = ['Normal', 'Failure']
+        tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+        scores = {
+            'accuracy': [accuracy_score(y_test, y_pred)],
+            'balanced accuracy': [balanced_accuracy_score(y_test, y_pred)],
+            'precision': [precision_score(y_test, y_pred)],
+            'recall': [recall_score(y_test, y_pred)],
+            'roc_auc': [roc_auc_score(y_test, y_pred)],
+            'F1': [f1_score(y_test, y_pred)],
+            'specificity': [tn / (tn + fp)]
+        }
     # CHANGE TO SCORES
+    scores = pd.DataFrame(scores)
     report = classification_report(
         y_test,
         y_pred,
-        target_names=target_names
+        target_names=target_names,
+        zero_division=1
     )
     print(report)
-    
+    print(scores)
     return search.best_estimator_
