@@ -320,27 +320,22 @@ def build_model(
     y_pred = search.best_estimator_.predict(X_test)
     print('Best Hyperparameters: ')
     print(search.best_estimator_)
+    print()
     
     labels = ['accuracy', 'f1', 'precision', 'roc_auc', 'recall', 'specificity']
-#     scores = {
-#         'accuracy': accuracy_score(y_test, y_pred),
-#         'balanced accuracy': balanced_accuracy_score(y_test, y_pred),
-#         'precision': ,
-#         'roc_auc': ,
-#         'recall': recall_score(y_test, y_pred),
-#     }
     
     if len(output_cols) > 1:
         target_names = output_cols
-        conf_matrix = multilabel_confusion_matrix(y_test, y_pred, labels=target_names)
-        for tn, fp, fn, tp in conf_matrix:
-            tn, fp, fn, tp = conf_matrix[]
+        conf_matrix = multilabel_confusion_matrix(y_test, y_pred)
+        for array in conf_matrix:
+            for i in range(len(output_cols)):
+                tn[i], fp[i], fn[i], tp[i] = array.ravel()
         scores = {
-            'accuracy': [accuracy_score(y_test, y_pred, labels=target_names)],
-            'balanced accuracy': [balanced_accuracy_score(y_test, y_pred, labels=target_names)],
+            'accuracy': [accuracy_score(y_test, y_pred)],
+            'balanced accuracy': [balanced_accuracy_score(y_test, y_pred)],
             'precision': [precision_score(y_test, y_pred, average='micro', labels=target_names)],
             'recall': [recall_score(y_test, y_pred, average='micro', labels=target_names)],
-            'roc_auc': [roc_auc_score(y_test, y_pred, average='micro', labels=target_names)],
+            'roc_auc': [roc_auc_score(y_test, y_pred, average='micro', labels=target_names, multi_class='ovr')],
             'F1': [f1_score(y_test, y_pred, average='micro', labels=target_names)],
 #             'specificity': conf_matrix[]
         }
@@ -356,8 +351,10 @@ def build_model(
             'F1': [f1_score(y_test, y_pred)],
             'specificity': [tn / (tn + fp)]
         }
-    # CHANGE TO SCORES
+    
+    # Converting scores to pd.DataFrame
     scores = pd.DataFrame(scores)
+    # Creating a classification report
     report = classification_report(
         y_test,
         y_pred,
