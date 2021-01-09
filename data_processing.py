@@ -28,9 +28,6 @@ from sklearn.metrics import (
 # SMOTE
 from imblearn.over_sampling import SMOTE
 
-# Pipeline
-from imblearn.pipeline import Pipeline
-
 
 def process_data(filename):
     '''
@@ -191,31 +188,34 @@ def class_dist(df):
     This function creates a graph of class distributions for the given dataset
     
     Inputs:
-      df | pandas.DataFrame | The desired dataset name
+      df | pandas.DataFrame | The desired dataset name. Dataframe should have
+      a name. See df.name.
       
     Outputs:
       Seaborn Catplot | sns.catplot | A graph showing distribution of classes for the dataset
     '''
+
+    df_class = pd.crosstab(
+        df['label'],
+        columns='count'
+    )
     
-    # Receives the count of all classes in the dataset & converts to a pd.DataFrame
-    df_class = df['label'].value_counts().to_frame()
-    # Changes the classes to index names
-    df_class.index.name = 'class'
-    # Resets the index values
-    df_class.reset_index(inplace=True)
+    df_class = df_class.reset_index()
+    df_class = df_class.sort_values('count', ascending=False)
+    
+    fig, ax = plt.subplots(figsize=(20, 12))
     
     # Plots a seaborn catplot of class distributions
-    a = sns.catplot(
-            data=df_class, kind='bar',
-            x='class', y='label'
+    sns.barplot(
+        data=df_class,
+        x='label', y='count',
+        ax=ax
     )
     
     # Setting figure title
-    a.fig.suptitle(f'Class Distribution for {df.name}')
-    # Setting figure axis labels
-    a.set_axis_labels('Class', 'Frequency')
+    ax.set_title(f'Class Distribution for {df.name}')
     # Rotating x-axis labels to ensure readability
-    a.set_xticklabels(rotation=40, ha="right")
+    plt.xticks(rotation=40)
     
     
 def build_model(
@@ -271,35 +271,21 @@ def build_model(
         test_size=0.3,
         random_state=0
     )
-    
-    # NEED TO APPLY SMOTE ONLY TO TRAIN SET, HOW???
-    
-    # Logic statements determining which pipeline to use based on given values
-    if smote == True and pca >= 1:
-        pipe = Pipeline([
-            ('sampling', SMOTE()),
-            ('standardisation', StandardScaler()),
-            ('pca', PCA(n_components=18))
-            ('classifier', classifier(random_state=0))
-        ])
-    elif smote == True:
-        pipe = Pipeline([
-            ('sampling', SMOTE()),
-            ('classifier', classifier(random_state=0))
-        ])
-    elif pca >= 1:
-        pipe = Pipeline([
-            ('standardisation', StandardScaler()),
-            ('pca', PCA(n_components=18)),
-            ('classifier', classifier(random_state=0))
-        ])
-    else:
-         pipe = classifier(random_state=0)
-    
+
+    if smote:
+        sm = SMOTE(
+            random_state=0
+        )
+
+        X_train, y_train = sm.fit_resample(
+            X_train,
+            y_train.values
+        )
+
     if cv == 1:
         search = RandomizedSearchCV(
             # Feeding the constructed pipeline in
-            pipe,
+            classifier,
             # Feeding in the defined hyperparameters
             hyperparams,
             # Defining scorer to use
@@ -311,7 +297,6 @@ def build_model(
             # Setting CV value to ShuffleSplit with 1 split
             # RandomizedSearchCV does not allow cv=1
             cv=ShuffleSplit(n_splits=1, random_state=0),
-            # 
             verbose=verbose,
             # Setting random state=0 for reproducibility
             random_state=0
@@ -319,7 +304,7 @@ def build_model(
         
     else:
         search = RandomizedSearchCV(
-            pipe,
+            classifier,
             hyperparams,
             scoring='accuracy',
             n_iter=n_iter,
@@ -344,9 +329,17 @@ def build_model(
 #     }
     print()
     
-    # CHANGE TO SCORES
+    if len(output_cols) > 1:
+        target_names = output_cols
+    elif len(output_cols) == 1:
+        target_names = ['0', '1']
     
-    report = classification_report(y_test, y_pred)
+    # CHANGE TO SCORES
+    report = classification_report(
+        y_test,
+        y_pred,
+        target_names=target_names
+    )
     print(report)
     
     return search.best_estimator_
