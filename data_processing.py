@@ -225,7 +225,7 @@ def build_model(
     df, input_cols, output_cols,
     classifier, hyperparams,
     cv, n_iter,
-    smote=True, pca=0,
+    smote=True, test_size=0.5,
     verbose=True,
 ):
     '''
@@ -269,7 +269,7 @@ def build_model(
     #
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
-        test_size=0.5,
+        test_size=test_size,
         random_state=0
     )
 
@@ -341,7 +341,7 @@ def build_model(
             'recall': [],
             'auc': [],
             'F1': [],
-            'specificity': []
+#             'specificity': []
         }
         
         # Creating empty arrays to store positive/neg values 
@@ -351,18 +351,18 @@ def build_model(
         fns = []
         
         # Iterating over confusion matrix
-        for array in conf_matrix:
-            if len(array) == len(output_cols):
-                tn, fp, fn, tp = array.ravel()
-                tps.append(tp)
-                fps.append(fp)
-                tns.append(tn)
-                fns.append(fn)
+#         for array in conf_matrix:
+#             if len(array) == len(output_cols):
+#                 tn, fp, fn, tp = array.ravel()
+#                 tps.append(tp)
+#                 fps.append(fp)
+#                 tns.append(tn)
+#                 fns.append(fn)
                 
-        if len(tns) > 0 and len(fps) > 0:
-            specificity = sum(tns) / (sum(tns) + sum(fps))
-        else:
-            specificity = None
+#         if len(tns) > 0 and len(fps) > 0:
+#             specificity = sum(tns) / (sum(tns) + sum(fps))
+#         else:
+#             specificity = None
         
         accuracy = np.diag(conf_matrix).sum() / conf_matrix.sum()
         
@@ -379,7 +379,7 @@ def build_model(
         scores['F1'].append(
             f1_score(y_test, y_pred, average='weighted')
         )
-        scores['specificity'].append(specificity)
+#         scores['specificity'].append(specificity)
 
         scores = pd.DataFrame(scores)
         
@@ -406,6 +406,7 @@ def build_model(
                 y_test.values[:, i],
                 y_pred[:, i]
             )
+            # Calculating AUC
             roc_auc[output] = auc(fpr[output], tpr[output])
 
         # Compute weighted-average ROC curve and AUC
@@ -414,6 +415,7 @@ def build_model(
         
         plt.figure(figsize=(10, 10))
         
+        # Iterating through outputs, plotting ROC
         for output in list(output_cols) + ['weighted']:
             plt.plot(
                 fpr[output], tpr[output],
@@ -422,8 +424,10 @@ def build_model(
 
         # Plotting the Base Rate ROC
         plt.plot([0,1], [0,1],label='Base Rate')
+        # Setting x & y limits for graph
         plt.xlim([-0.005, 1.0])
         plt.ylim([0.0, 1.05])
+        # Setting axis labels, title & legend
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.title('ROC Graph')
@@ -434,6 +438,7 @@ def build_model(
     elif len(output_cols) == 1:
         target_names = ['Normal', 'Failure']
         
+        # Setting empty dict of score metrics
         scores = {
             'accuracy': [],
             'precision': [],
@@ -446,6 +451,7 @@ def build_model(
         # Creating array of positive/neg values
         tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
         
+        # Appending calculated metrics
         scores['accuracy'].append(accuracy_score(y_test, y_pred))
         scores['precision'].append(precision_score(y_test, y_pred, average='weighted'))
         scores['recall'].append(recall_score(y_test, y_pred, average='weighted'))
@@ -464,10 +470,12 @@ def build_model(
         plt.title('Confusion Matrix')
         plt.show()
         
+        # Creating roc_curve
         fpr, tpr, thresholds = roc_curve(y_test, y_pred)
-
+        
         plt.figure(figsize=(10, 10))
         
+        # Calculating AUC
         auc_score = auc(fpr, tpr)
 
         # Plot Random Forest ROC
@@ -475,9 +483,10 @@ def build_model(
 
         # Plot Base Rate ROC
         plt.plot([0,1], [0,1],label='Base Rate')
-
+        # Setting x & y limits for graph
         plt.xlim([-0.005, 1.0])
         plt.ylim([0.0, 1.05])
+        # Setting axis labels, title & legend
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
         plt.title('ROC Graph')
@@ -491,7 +500,7 @@ def build_model(
         y_test,
         y_pred,
         target_names=target_names,
-        zero_division=1
+        zero_division=0
     )
     
     print(report)
