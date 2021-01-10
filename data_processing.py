@@ -335,6 +335,15 @@ def build_model(
             search.best_estimator_.predict(X_test).argmax(axis=1), 
         )
         
+        scores = {
+            'accuracy': [],
+            'precision': [],
+            'recall': [],
+            'auc': [],
+            'F1': [],
+            'specificity': []
+        }
+        
         # Creating empty arrays to store positive/neg values 
         tps = []
         fps = []
@@ -343,27 +352,36 @@ def build_model(
         
         # Iterating over confusion matrix
         for array in conf_matrix:
-            if len(array) == 4:
+            if len(array) == len(output_cols):
                 tn, fp, fn, tp = array.ravel()
                 tps.append(tp)
                 fps.append(fp)
                 tns.append(tn)
                 fns.append(fn)
-        
+                
         if len(tns) > 0 and len(fps) > 0:
-            specificity = [sum(tns) / (sum(tns) + sum(fps))]
+            specificity = sum(tns) / (sum(tns) + sum(fps))
         else:
             specificity = None
         
-        # Defining scores to use
-        scores = {
-            'accuracy': [accuracy_score(y_test, y_pred)],
-            'precision': [precision_score(y_test, y_pred, average='weighted')],
-            'recall': [recall_score(y_test, y_pred, average='weighted')],
-            'roc_auc': [roc_auc_score(y_test, y_pred, average='weighted', multi_class='ovr')],
-            'F1': [f1_score(y_test, y_pred, average='weighted')],
-            'specificity': specificity
-        }
+        accuracy = np.diag(conf_matrix).sum() / conf_matrix.sum()
+        
+        scores['accuracy'].append(accuracy)
+        scores['precision'].append(
+            precision_score(y_test, y_pred, average='weighted', zero_division=0)
+        )
+        scores['recall'].append(
+            recall_score(y_test, y_pred, average='weighted', zero_division=0)
+        )
+        scores['auc'].append(
+            roc_auc_score(y_test, y_pred, average='weighted', multi_class='ovr')
+        )
+        scores['F1'].append(
+            f1_score(y_test, y_pred, average='weighted')
+        )
+        scores['specificity'].append(specificity)
+
+        scores = pd.DataFrame(scores)
         
         # Plotting the confusion matrix
         disp = ConfusionMatrixDisplay(
@@ -416,16 +434,24 @@ def build_model(
     elif len(output_cols) == 1:
         target_names = ['Normal', 'Failure']
         
+        scores = {
+            'accuracy': [],
+            'precision': [],
+            'recall': [],
+            'auc': [],
+            'F1': [],
+            'specificity': []
+        }
+        
         # Creating array of positive/neg values
         tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
-        scores = {
-            'accuracy': [accuracy_score(y_test, y_pred)],
-            'precision': [precision_score(y_test, y_pred)],
-            'recall': [recall_score(y_test, y_pred)],
-            'roc_auc': [roc_auc_score(y_test, y_pred)],
-            'F1': [f1_score(y_test, y_pred)],
-            'specificity': [tn / (tn + fp)]
-        }
+        
+        scores['accuracy'].append(accuracy_score(y_test, y_pred))
+        scores['precision'].append(precision_score(y_test, y_pred, average='weighted'))
+        scores['recall'].append(recall_score(y_test, y_pred, average='weighted'))
+        scores['auc'].append(roc_auc_score(y_test, y_pred, average='weighted'))
+        scores['F1'].append(f1_score(y_test, y_pred, average='weighted'))
+        scores['specificity'].append(tn / (tn + fp))
         
         # Plotting the confusion matrix
         fig, ax = plt.subplots(figsize=(6, 6))
