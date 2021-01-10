@@ -329,7 +329,7 @@ def build_model(
     # Using the best estimator from RandomizedSearchCV to predict test dataset
     y_pred = search.best_estimator_.predict(X_test)
     print('Best Hyperparameters: ')
-    print(search.best_estimator_)
+    print(search.best_estimator_.get_params())
     print()
     
     # Multi-class case
@@ -495,5 +495,5 @@ def build_model(
     print(report)
     print(scores)
     print()
-    print(f'Time to fit best model: {search.refit_time_}s')
+    print(f'Time to fit best model: {search.refit_time_} seconds')
     return search.best_estimator_
