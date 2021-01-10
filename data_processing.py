@@ -225,7 +225,7 @@ def build_model(
     df, input_cols, output_cols,
     classifier, hyperparams,
     cv, n_iter,
-    smote=True, test_size=0.5,
+    smote=True, test_size=0.3,
     verbose=True,
 ):
     '''
@@ -250,29 +250,34 @@ def build_model(
       
       smote | boolean | Boolean value defining if SMOTE should be used
       
+      test_size | float | Ratio to use for the train/test split
+      
       verbose | boolean | Boolean value defining if verbose should be displayed
       
     Outputs:
       report | dictionary | Dictionary containing the classification report from RandomizedSearchCV
       
       scores | pd.DataFrame | Pandas Dataframe containing the score values for the classifier
+      
+      
     '''
     
     # Copying the model, prevents it
     df_model = df.copy()
     
     #
-    X = df_model[input_cols]
+    X = df_model[input_cols].copy()
     #
     y = df_model[output_cols].copy()
     
-    #
+    # Defining Test/Train split
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
         test_size=test_size,
         random_state=0
     )
-
+    
+    # Using SMOTE if smote=True
     if smote:
         sm = SMOTE(
             random_state=0,
@@ -283,7 +288,8 @@ def build_model(
             X_train,
             y_train.values
         )
-
+    
+    # No Cross-folds
     if cv == 1:
         search = RandomizedSearchCV(
             # Feeding the constructed pipeline in
@@ -303,7 +309,7 @@ def build_model(
             # Setting random state=0 for reproducibility
             random_state=0
         )
-        
+    # Cross-folds included    
     else:
         search = RandomizedSearchCV(
             classifier,
@@ -317,8 +323,10 @@ def build_model(
             random_state=0
         )
     
+    # Fitting the RandomizedSearchCV to the training dataset
     search = search.fit(X=X_train, y=y_train)
 
+    # Using the best estimator from RandomizedSearchCV to predict test dataset
     y_pred = search.best_estimator_.predict(X_test)
     print('Best Hyperparameters: ')
     print(search.best_estimator_)
@@ -335,35 +343,16 @@ def build_model(
             search.best_estimator_.predict(X_test).argmax(axis=1), 
         )
         
+        # Creating empty dictionary to store score metrics
         scores = {
             'accuracy': [],
             'precision': [],
             'recall': [],
             'auc': [],
-            'F1': [],
-#             'specificity': []
+            'F1': []
         }
         
-        # Creating empty arrays to store positive/neg values 
-        tps = []
-        fps = []
-        tns = []
-        fns = []
-        
-        # Iterating over confusion matrix
-#         for array in conf_matrix:
-#             if len(array) == len(output_cols):
-#                 tn, fp, fn, tp = array.ravel()
-#                 tps.append(tp)
-#                 fps.append(fp)
-#                 tns.append(tn)
-#                 fns.append(fn)
-                
-#         if len(tns) > 0 and len(fps) > 0:
-#             specificity = sum(tns) / (sum(tns) + sum(fps))
-#         else:
-#             specificity = None
-        
+        # Calculating the accuracy from the confusion matrix
         accuracy = np.diag(conf_matrix).sum() / conf_matrix.sum()
         
         scores['accuracy'].append(accuracy)
@@ -379,8 +368,8 @@ def build_model(
         scores['F1'].append(
             f1_score(y_test, y_pred, average='weighted')
         )
-#         scores['specificity'].append(specificity)
-
+    
+        # Converting dictionary to pd.DataFrame
         scores = pd.DataFrame(scores)
         
         # Plotting the confusion matrix
@@ -505,4 +494,6 @@ def build_model(
     
     print(report)
     print(scores)
+    print()
+    print(f'Time to fit best model: {search.refit_time_}s')
     return search.best_estimator_
