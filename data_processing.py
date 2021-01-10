@@ -425,7 +425,7 @@ def build_model(
         
     # Binary-class case
     elif len(output_cols) == 1:
-        target_names = ['Normal', 'Failure']
+        target_names = ['Failure', 'Normal']
         
         # Setting empty dict of score metrics
         scores = {
