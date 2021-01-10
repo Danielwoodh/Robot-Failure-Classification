@@ -24,7 +24,8 @@ from sklearn.metrics import (
     f1_score, precision_score, recall_score,
     roc_auc_score, classification_report,
     confusion_matrix, plot_confusion_matrix,
-    multilabel_confusion_matrix
+    multilabel_confusion_matrix, ConfusionMatrixDisplay,
+    auc, roc_curve
 )
 
 # SMOTE
@@ -268,13 +269,14 @@ def build_model(
     #
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
-        test_size=0.4,
+        test_size=0.5,
         random_state=0
     )
 
     if smote:
         sm = SMOTE(
-            random_state=0
+            random_state=0,
+            k_neighbors=1
         )
 
         X_train, y_train = sm.fit_resample(
@@ -322,36 +324,140 @@ def build_model(
     print(search.best_estimator_)
     print()
     
-    labels = ['accuracy', 'f1', 'precision', 'roc_auc', 'recall', 'specificity']
-    
+    # Multi-class case
     if len(output_cols) > 1:
+        # Defining target names
         target_names = output_cols
-        conf_matrix = multilabel_confusion_matrix(y_test, y_pred)
+        
+        # Creating a multi-class confusion matrix
+        conf_matrix = confusion_matrix(
+            y_test.values.argmax(axis=1),
+            search.best_estimator_.predict(X_test).argmax(axis=1), 
+        )
+        
+        # Creating empty arrays to store positive/neg values 
+        tps = []
+        fps = []
+        tns = []
+        fns = []
+        
+        # Iterating over confusion matrix
         for array in conf_matrix:
-            for i in range(len(output_cols)):
-                tn[i], fp[i], fn[i], tp[i] = array.ravel()
+            if len(array) == 4:
+                tn, fp, fn, tp = array.ravel()
+                tps.append(tp)
+                fps.append(fp)
+                tns.append(tn)
+                fns.append(fn)
+        
+        if len(tns) > 0 and len(fps) > 0:
+            specificity = [sum(tns) / (sum(tns) + sum(fps))]
+        else:
+            specificity = None
+        
+        # Defining scores to use
         scores = {
             'accuracy': [accuracy_score(y_test, y_pred)],
-            'balanced accuracy': [balanced_accuracy_score(y_test, y_pred)],
-            'precision': [precision_score(y_test, y_pred, average='micro', labels=target_names)],
-            'recall': [recall_score(y_test, y_pred, average='micro', labels=target_names)],
-            'roc_auc': [roc_auc_score(y_test, y_pred, average='micro', labels=target_names, multi_class='ovr')],
-            'F1': [f1_score(y_test, y_pred, average='micro', labels=target_names)],
-#             'specificity': conf_matrix[]
+            'precision': [precision_score(y_test, y_pred, average='weighted')],
+            'recall': [recall_score(y_test, y_pred, average='weighted')],
+            'roc_auc': [roc_auc_score(y_test, y_pred, average='weighted', multi_class='ovr')],
+            'F1': [f1_score(y_test, y_pred, average='weighted')],
+            'specificity': specificity
         }
+        
+        # Plotting the confusion matrix
+        disp = ConfusionMatrixDisplay(
+            confusion_matrix=conf_matrix,
+            display_labels=output_cols,
+        )
+        fig, ax = plt.subplots(figsize=(6, 6))
+        plt.grid(False)
+        disp.plot(cmap='Blues', ax=ax)
+        plt.title('Confusion Matrix')
+        plt.xticks(rotation=90)
+        plt.show()
+        
+        # Creating dictionaries of fpr, tpr, roc_auc
+        fpr = {}
+        tpr = {}
+        roc_auc = {}
+        
+        # Iterating through the output of the dataframe
+        for i, output in enumerate(output_cols):
+            fpr[output], tpr[output], _ = roc_curve(
+                y_test.values[:, i],
+                y_pred[:, i]
+            )
+            roc_auc[output] = auc(fpr[output], tpr[output])
+
+        # Compute weighted-average ROC curve and AUC
+        fpr["weighted"], tpr["weighted"], _ = roc_curve(y_test.values.ravel(), y_pred.ravel())
+        roc_auc["weighted"] = auc(fpr["weighted"], tpr["weighted"])
+        
+        plt.figure(figsize=(10, 10))
+        
+        for output in list(output_cols) + ['weighted']:
+            plt.plot(
+                fpr[output], tpr[output],
+                label=f'{output} AUC: {round(roc_auc[output], 3)}'
+            )
+
+        # Plotting the Base Rate ROC
+        plt.plot([0,1], [0,1],label='Base Rate')
+        plt.xlim([-0.005, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC Graph')
+        plt.legend(loc="lower right")
+        plt.show()
+        
+    # Binary-class case
     elif len(output_cols) == 1:
         target_names = ['Normal', 'Failure']
+        
+        # Creating array of positive/neg values
         tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
         scores = {
             'accuracy': [accuracy_score(y_test, y_pred)],
-            'balanced accuracy': [balanced_accuracy_score(y_test, y_pred)],
             'precision': [precision_score(y_test, y_pred)],
             'recall': [recall_score(y_test, y_pred)],
             'roc_auc': [roc_auc_score(y_test, y_pred)],
             'F1': [f1_score(y_test, y_pred)],
             'specificity': [tn / (tn + fp)]
         }
-    
+        
+        # Plotting the confusion matrix
+        fig, ax = plt.subplots(figsize=(6, 6))
+        plt.grid(False)
+        plot_conf_matrix = plot_confusion_matrix(
+            search.best_estimator_, X_test, y_test,
+            display_labels=target_names, cmap=plt.cm.Blues,
+            ax=ax
+        )
+        plt.title('Confusion Matrix')
+        plt.show()
+        
+        fpr, tpr, thresholds = roc_curve(y_test, y_pred)
+
+        plt.figure(figsize=(10, 10))
+        
+        auc_score = auc(fpr, tpr)
+
+        # Plot Random Forest ROC
+        plt.plot(fpr, tpr, label=f'AUC: {round(auc_score, 3)}')
+
+        # Plot Base Rate ROC
+        plt.plot([0,1], [0,1],label='Base Rate')
+
+        plt.xlim([-0.005, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC Graph')
+        plt.legend(loc="lower right")
+        plt.show()
+        
     # Converting scores to pd.DataFrame
     scores = pd.DataFrame(scores)
     # Creating a classification report
@@ -361,6 +467,7 @@ def build_model(
         target_names=target_names,
         zero_division=1
     )
+    
     print(report)
     print(scores)
     return search.best_estimator_
