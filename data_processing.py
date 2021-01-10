@@ -265,9 +265,9 @@ def build_model(
     # Copying the model, prevents it
     df_model = df.copy()
     
-    #
+    # Creating input columns
     X = df_model[input_cols].copy()
-    #
+    # Creating output columns
     y = df_model[output_cols].copy()
     
     # Defining Test/Train split
