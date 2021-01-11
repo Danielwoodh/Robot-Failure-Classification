@@ -31,9 +31,6 @@ from sklearn.metrics import (
 # SMOTE
 from imblearn.over_sampling import SMOTE
 
-# Model interpretability
-from eli5 import show_weights
-
 
 def process_data(filename):
     '''
@@ -262,7 +259,7 @@ def build_model(
       
       scores | pd.DataFrame | Pandas Dataframe containing the score values for the classifier
       
-      
+      search.best_estimator_ | Classifier | The best classifier determined by RandomizedSearchCV
     '''
     
     # Copying the model, prevents it
@@ -499,5 +496,4 @@ def build_model(
     print(scores)
     print()
     print(f'Time to fit best model: {search.refit_time_} seconds')
-    print(show_weights(search.best_estimator_))
     return search.best_estimator_
