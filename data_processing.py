@@ -198,14 +198,18 @@ def class_dist(df):
       Seaborn Catplot | sns.catplot | A graph showing distribution of classes for the dataset
     '''
 
+    # Computing frequencies
     df_class = pd.crosstab(
         df['label'],
         columns='count'
     )
     
+    # Resetting indexes
     df_class = df_class.reset_index()
+    # Sorting classes by frequency
     df_class = df_class.sort_values('count', ascending=False)
     
+    # Creating subplot
     fig, ax = plt.subplots(figsize=(20, 12))
     
     # Plots a seaborn catplot of class distributions
@@ -283,7 +287,8 @@ def build_model(
             random_state=0,
             k_neighbors=1
         )
-
+        
+        # Refitting the training datasets using SMOTE
         X_train, y_train = sm.fit_resample(
             X_train,
             y_train.values
@@ -291,6 +296,7 @@ def build_model(
     
     # No Cross-folds
     if cv == 1:
+        # Using RandomizedSearchCV to find best hyperaparameters
         search = RandomizedSearchCV(
             # Feeding the constructed pipeline in
             classifier,
@@ -328,6 +334,8 @@ def build_model(
 
     # Using the best estimator from RandomizedSearchCV to predict test dataset
     y_pred = search.best_estimator_.predict(X_test)
+
+    # Printing the set of hyperaparameters from the best classifier
     print('Best Hyperparameters: ')
     print(search.best_estimator_.get_params())
     print()
@@ -343,7 +351,7 @@ def build_model(
             search.best_estimator_.predict(X_test).argmax(axis=1), 
         )
         
-        # Creating empty dictionary to store score metrics
+        # Creating an empty dictionary to store score metrics
         scores = {
             'accuracy': [],
             'precision': [],
@@ -355,6 +363,7 @@ def build_model(
         # Calculating the accuracy from the confusion matrix
         accuracy = np.diag(conf_matrix).sum() / conf_matrix.sum()
         
+        # Appending the scores values to the dictionary
         scores['accuracy'].append(accuracy)
         scores['precision'].append(
             precision_score(y_test, y_pred, average='weighted', zero_division=0)
@@ -369,7 +378,7 @@ def build_model(
             f1_score(y_test, y_pred, average='weighted')
         )
     
-        # Converting dictionary to pd.DataFrame
+        # Converting the dictionary to a pd.DataFrame
         scores = pd.DataFrame(scores)
         
         # Plotting the confusion matrix
@@ -398,10 +407,11 @@ def build_model(
             # Calculating AUC
             roc_auc[output] = auc(fpr[output], tpr[output])
 
-        # Compute weighted-average ROC curve and AUC
+        # Computing weighted-average ROC curve and AUC
         fpr["weighted"], tpr["weighted"], _ = roc_curve(y_test.values.ravel(), y_pred.ravel())
         roc_auc["weighted"] = auc(fpr["weighted"], tpr["weighted"])
         
+        # Re-setting figure size
         plt.figure(figsize=(10, 10))
         
         # Iterating through outputs, plotting ROC
@@ -462,6 +472,7 @@ def build_model(
         # Creating roc_curve
         fpr, tpr, thresholds = roc_curve(y_test, y_pred)
         
+        # Resetting figure size
         plt.figure(figsize=(10, 10))
         
         # Calculating AUC
@@ -495,5 +506,7 @@ def build_model(
     print(report)
     print(scores)
     print()
+    # Printing the time to fit model in seconds
     print(f'Time to fit best model: {search.refit_time_} seconds')
+    print()
     return search.best_estimator_
