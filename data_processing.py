@@ -22,7 +22,10 @@ from sklearn.model_selection import (
 from sklearn.metrics import (
     accuracy_score, balanced_accuracy_score,
     f1_score, precision_score, recall_score,
-    roc_auc_score, classification_report
+    roc_auc_score, classification_report,
+    confusion_matrix, plot_confusion_matrix,
+    multilabel_confusion_matrix, ConfusionMatrixDisplay,
+    auc, roc_curve
 )
 
 # SMOTE
@@ -195,14 +198,18 @@ def class_dist(df):
       Seaborn Catplot | sns.catplot | A graph showing distribution of classes for the dataset
     '''
 
+    # Computing frequencies
     df_class = pd.crosstab(
         df['label'],
         columns='count'
     )
     
+    # Resetting indexes
     df_class = df_class.reset_index()
+    # Sorting classes by frequency
     df_class = df_class.sort_values('count', ascending=False)
     
+    # Creating subplot
     fig, ax = plt.subplots(figsize=(20, 12))
     
     # Plots a seaborn catplot of class distributions
@@ -222,7 +229,7 @@ def build_model(
     df, input_cols, output_cols,
     classifier, hyperparams,
     cv, n_iter,
-    smote=True, pca=0,
+    smote=True, test_size=0.3,
     verbose=True,
 ):
     '''
@@ -247,42 +254,49 @@ def build_model(
       
       smote | boolean | Boolean value defining if SMOTE should be used
       
-      pca | boolean | Boolean value defining if PCA should be used
+      test_size | float | Ratio to use for the train/test split
       
       verbose | boolean | Boolean value defining if verbose should be displayed
       
     Outputs:
       report | dictionary | Dictionary containing the classification report from RandomizedSearchCV
       
-      scores | dictionary | Dictionary containing the score values for the classifier
+      scores | pd.DataFrame | Pandas Dataframe containing the score values for the classifier
+      
+      search.best_estimator_ | Classifier | The best classifier determined by RandomizedSearchCV
     '''
     
     # Copying the model, prevents it
     df_model = df.copy()
     
-    #
-    X = df_model[input_cols]
-    #
+    # Creating input columns
+    X = df_model[input_cols].copy()
+    # Creating output columns
     y = df_model[output_cols].copy()
     
-    #
+    # Defining Test/Train split
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
-        test_size=0.3,
+        test_size=test_size,
         random_state=0
     )
-
+    
+    # Using SMOTE if smote=True
     if smote:
         sm = SMOTE(
-            random_state=0
+            random_state=0,
+            k_neighbors=1
         )
-
+        
+        # Refitting the training datasets using SMOTE
         X_train, y_train = sm.fit_resample(
             X_train,
             y_train.values
         )
-
+    
+    # No Cross-folds
     if cv == 1:
+        # Using RandomizedSearchCV to find best hyperaparameters
         search = RandomizedSearchCV(
             # Feeding the constructed pipeline in
             classifier,
@@ -301,7 +315,7 @@ def build_model(
             # Setting random state=0 for reproducibility
             random_state=0
         )
-        
+    # Cross-folds included    
     else:
         search = RandomizedSearchCV(
             classifier,
@@ -315,31 +329,184 @@ def build_model(
             random_state=0
         )
     
+    # Fitting the RandomizedSearchCV to the training dataset
     search = search.fit(X=X_train, y=y_train)
 
+    # Using the best estimator from RandomizedSearchCV to predict test dataset
     y_pred = search.best_estimator_.predict(X_test)
+
+    # Printing the set of hyperaparameters from the best classifier
     print('Best Hyperparameters: ')
-    print(search.best_estimator_)
-    
-#     labels = ['accuracy', 'f1', 'precision', 'roc_auc', 'recall', 'specificity']
-#     scores = {
-#         '': 
-#         '':
-#         '':
-#     }
+    print(search.best_estimator_.get_params())
     print()
     
+    # Multi-class case
     if len(output_cols) > 1:
+        # Defining target names
         target_names = output_cols
-    elif len(output_cols) == 1:
-        target_names = ['0', '1']
+        
+        # Creating a multi-class confusion matrix
+        conf_matrix = confusion_matrix(
+            y_test.values.argmax(axis=1),
+            search.best_estimator_.predict(X_test).argmax(axis=1), 
+        )
+        
+        # Creating an empty dictionary to store score metrics
+        scores = {
+            'accuracy': [],
+            'precision': [],
+            'recall': [],
+            'auc': [],
+            'F1': []
+        }
+        
+        # Calculating the accuracy from the confusion matrix
+        accuracy = np.diag(conf_matrix).sum() / conf_matrix.sum()
+        
+        # Appending the scores values to the dictionary
+        scores['accuracy'].append(accuracy)
+        scores['precision'].append(
+            precision_score(y_test, y_pred, average='weighted', zero_division=0)
+        )
+        scores['recall'].append(
+            recall_score(y_test, y_pred, average='weighted', zero_division=0)
+        )
+        scores['auc'].append(
+            roc_auc_score(y_test, y_pred, average='weighted', multi_class='ovr')
+        )
+        scores['F1'].append(
+            f1_score(y_test, y_pred, average='weighted')
+        )
     
-    # CHANGE TO SCORES
+        # Converting the dictionary to a pd.DataFrame
+        scores = pd.DataFrame(scores)
+        
+        # Plotting the confusion matrix
+        disp = ConfusionMatrixDisplay(
+            confusion_matrix=conf_matrix,
+            display_labels=output_cols,
+        )
+        fig, ax = plt.subplots(figsize=(6, 6))
+        plt.grid(False)
+        disp.plot(cmap='Blues', ax=ax)
+        plt.title('Confusion Matrix')
+        plt.xticks(rotation=90)
+        plt.show()
+        
+        # Creating dictionaries of fpr, tpr, roc_auc
+        fpr = {}
+        tpr = {}
+        roc_auc = {}
+        
+        # Iterating through the output of the dataframe
+        for i, output in enumerate(output_cols):
+            fpr[output], tpr[output], _ = roc_curve(
+                y_test.values[:, i],
+                y_pred[:, i]
+            )
+            # Calculating AUC
+            roc_auc[output] = auc(fpr[output], tpr[output])
+
+        # Computing weighted-average ROC curve and AUC
+        fpr["weighted"], tpr["weighted"], _ = roc_curve(y_test.values.ravel(), y_pred.ravel())
+        roc_auc["weighted"] = auc(fpr["weighted"], tpr["weighted"])
+        
+        # Re-setting figure size
+        plt.figure(figsize=(10, 10))
+        
+        # Iterating through outputs, plotting ROC
+        for output in list(output_cols) + ['weighted']:
+            plt.plot(
+                fpr[output], tpr[output],
+                label=f'{output} AUC: {round(roc_auc[output], 3)}'
+            )
+
+        # Plotting the Base Rate ROC
+        plt.plot([0,1], [0,1],label='Base Rate')
+        # Setting x & y limits for graph
+        plt.xlim([-0.005, 1.0])
+        plt.ylim([0.0, 1.05])
+        # Setting axis labels, title & legend
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC Graph')
+        plt.legend(loc="lower right")
+        plt.show()
+        
+    # Binary-class case
+    elif len(output_cols) == 1:
+        target_names = ['Failure', 'Normal']
+        
+        # Setting empty dict of score metrics
+        scores = {
+            'accuracy': [],
+            'precision': [],
+            'recall': [],
+            'auc': [],
+            'F1': [],
+            'specificity': []
+        }
+        
+        # Creating array of positive/neg values
+        tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+        
+        # Appending calculated metrics
+        scores['accuracy'].append(accuracy_score(y_test, y_pred))
+        scores['precision'].append(precision_score(y_test, y_pred, average='weighted'))
+        scores['recall'].append(recall_score(y_test, y_pred, average='weighted'))
+        scores['auc'].append(roc_auc_score(y_test, y_pred, average='weighted'))
+        scores['F1'].append(f1_score(y_test, y_pred, average='weighted'))
+        scores['specificity'].append(tn / (tn + fp))
+        
+        # Plotting the confusion matrix
+        fig, ax = plt.subplots(figsize=(6, 6))
+        plt.grid(False)
+        plot_conf_matrix = plot_confusion_matrix(
+            search.best_estimator_, X_test, y_test,
+            display_labels=target_names, cmap=plt.cm.Blues,
+            ax=ax
+        )
+        plt.title('Confusion Matrix')
+        plt.show()
+        
+        # Creating roc_curve
+        fpr, tpr, thresholds = roc_curve(y_test, y_pred)
+        
+        # Resetting figure size
+        plt.figure(figsize=(10, 10))
+        
+        # Calculating AUC
+        auc_score = auc(fpr, tpr)
+
+        # Plot Random Forest ROC
+        plt.plot(fpr, tpr, label=f'AUC: {round(auc_score, 3)}')
+
+        # Plot Base Rate ROC
+        plt.plot([0,1], [0,1],label='Base Rate')
+        # Setting x & y limits for graph
+        plt.xlim([-0.005, 1.0])
+        plt.ylim([0.0, 1.05])
+        # Setting axis labels, title & legend
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('ROC Graph')
+        plt.legend(loc="lower right")
+        plt.show()
+        
+    # Converting scores to pd.DataFrame
+    scores = pd.DataFrame(scores)
+    # Creating a classification report
     report = classification_report(
         y_test,
         y_pred,
-        target_names=target_names
+        target_names=target_names,
+        zero_division=0
     )
-    print(report)
     
+    print(report)
+    print(scores)
+    print()
+    # Printing the time to fit model in seconds
+    print(f'Time to fit best model: {search.refit_time_} seconds')
+    print()
     return search.best_estimator_
