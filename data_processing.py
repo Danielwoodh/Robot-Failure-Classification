@@ -509,5 +509,4 @@ def build_model(
     # Printing the time to fit model in seconds
     print(f'Time to fit best model: {search.refit_time_} seconds')
     print()
-    # Returning best estimator
     return search.best_estimator_
