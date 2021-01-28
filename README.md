@@ -2,7 +2,6 @@
 This project is an assessment for Cranfield University involving the construction of machine-learning models to classify datasets containing Force and Torque data relating to an operation type of a robot.
 
 ## Files contained
----
 
 The jupyter notebook 'robot-failure-classifcation.ipynb' shows the construction of all of the ML models as well as the data preparation. It also shows a demonstration of how SMOTE can be used to fix some of the class imbalance issues in the dataset. A demonstration of PCA for LP1 is shown but not implemented.
 
@@ -15,7 +14,6 @@ The 'Dataset' folder contains the datasets that are analysed, LP1-5.
 The 'LICENSE' file is used only for uploading to Github.
 
 ## Installation
----
 
 Make sure you are running Python 3.7 or above.
 
