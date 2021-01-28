@@ -13,7 +13,7 @@ The 'Dataset' folder contains the datasets that are analysed, LP1-5.
 
 The 'LICENSE' file is used only for uploading to Github.
 
-The 'report.pdf' file contains the report that was created, outlining the literature review, methodology, and results that were produced to accompany this project.
+The '350272-Report.pdf' file contains the report that was created, outlining the literature review, methodology, and results that were produced to accompany this project.
 
 ## Installation
 
