@@ -1,6 +1,6 @@
 # Robot Failure Classification
 ---
-This project is an assessment for Cranfield University involving the construction of achine-learning models to classify datasets containing Force and Torque data relating to an operation type of a robot.
+This project is an assessment for Cranfield University involving the construction of machine-learning models to classify datasets containing Force and Torque data relating to an operation type of a robot.
 
 ## Files contained
 ---
